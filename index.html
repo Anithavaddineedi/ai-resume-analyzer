@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>AI Resume Analyzer</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg,#667eea,#764ba2);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:20px;
+}
+
+.card{
+    background:white;
+    width:650px;
+    max-width:100%;
+    border-radius:25px;
+    padding:35px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.2);
+}
+
+h1{
+    margin-bottom:25px;
+    color:#333;
+}
+
+input{
+    margin:20px 0;
+}
+
+button{
+    background:#667eea;
+    color:white;
+    border:none;
+    padding:14px 28px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:16px;
+    font-weight:bold;
+}
+
+button:hover{
+    background:#5a67d8;
+}
+
+#loading{
+    margin-top:20px;
+    color:#444;
+    font-weight:bold;
+}
+
+.result{
+    margin-top:30px;
+    background:#f7f7f7;
+    padding:25px;
+    border-radius:15px;
+}
+
+.skill{
+    display:inline-block;
+    background:#667eea;
+    color:white;
+    padding:6px 12px;
+    border-radius:20px;
+    margin:5px;
+    font-size:14px;
+}
+
+.missing{
+    background:#ff5722;
+}
+
+.score{
+    font-size:32px;
+    font-weight:bold;
+    color:#333;
+    margin-bottom:20px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+<h1>📄 AI Resume Analyzer</h1>
+
+<input type="file" id="file" />
+
+<br>
+
+<button onclick="analyzeResume()">Analyze Resume</button>
+
+<div id="loading"></div>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+const allSkills = [
+"html","css","javascript","react","node","express",
+"mongodb","sql","python","java","docker",
+"aws","git","typescript","next","c","c++"
+];
+
+async function analyzeResume(){
+
+    const fileInput = document.getElementById("file");
+    const file = fileInput.files[0];
+
+    if(!file){
+        alert("Please choose a file");
+        return;
+    }
+
+    document.getElementById("loading").innerHTML = "Analyzing Resume...";
+    document.getElementById("result").innerHTML = "";
+
+    let text = "";
+
+    if(file.type === "text/plain"){
+
+        text = await file.text();
+
+    }
+
+    else if(file.type === "application/pdf"){
+
+        text = await readPDF(file);
+
+    }
+
+    else if(file.type.startsWith("image/")){
+
+        text = await readImage(file);
+
+    }
+
+    else{
+        alert("Only TXT, PDF, Images allowed");
+        return;
+    }
+
+    processResume(text.toLowerCase());
+}
+
+async function readPDF(file){
+
+    const arrayBuffer = await file.arrayBuffer();
+
+    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+
+    let fullText = "";
+
+    for(let i=1;i<=pdf.numPages;i++){
+
+        const page = await pdf.getPage(i);
+
+        const content = await page.getTextContent();
+
+        const strings = content.items.map(item => item.str);
+
+        fullText += strings.join(" ");
+
+    }
+
+    return fullText;
+}
+
+async function readImage(file){
+
+    const { data:{ text } } = await Tesseract.recognize(
+        file,
+        'eng'
+    );
+
+    return text;
+}
+
+function processResume(text){
+
+    let foundSkills = [];
+
+    allSkills.forEach(skill=>{
+
+        if(text.includes(skill)){
+            foundSkills.push(skill);
+        }
+
+    });
+
+    let missingSkills = allSkills.filter(
+        skill => !foundSkills.includes(skill)
+    );
+
+    let atsScore = Math.min(
+        100,
+        foundSkills.length * 10
+    );
+
+    let experience = "Beginner";
+
+    if(text.includes("3 years") || text.includes("4 years") || text.includes("5 years")){
+        experience = "Intermediate";
+    }
+
+    if(text.includes("7 years") || text.includes("8 years") || text.includes("10 years")){
+        experience = "Expert";
+    }
+
+    let bestRole = "Frontend Developer";
+
+    if(text.includes("python") || text.includes("java")){
+        bestRole = "Backend Developer";
+    }
+
+    if(text.includes("react")){
+        bestRole = "Frontend Developer";
+    }
+
+    if(text.includes("aws") || text.includes("docker")){
+        bestRole = "DevOps Engineer";
+    }
+
+    document.getElementById("loading").innerHTML = "";
+
+    document.getElementById("result").innerHTML = `
+
+    <div class="result">
+
+        <div class="score">
+            🎯 ATS Score: ${atsScore}/100
+        </div>
+
+        <h3>Skills:</h3>
+
+        ${
+            foundSkills.length > 0
+            ?
+            foundSkills.map(skill =>
+                `<span class="skill">${skill}</span>`
+            ).join("")
+            :
+            "No skills detected"
+        }
+
+        <br><br>
+
+        <h3>Missing Skills:</h3>
+
+        ${
+            missingSkills.map(skill =>
+                `<span class="skill missing">${skill}</span>`
+            ).join("")
+        }
+
+        <br><br>
+
+        <h3>Experience: ${experience}</h3>
+
+        <br>
+
+        <h3>Best Role: ${bestRole}</h3>
+
+    </div>
+
+    `;
+}
+
+</script>
+
+</body>
+</html>
