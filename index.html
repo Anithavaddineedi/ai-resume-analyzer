@@ -10,7 +10,6 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-
 *{
     margin:0;
     padding:0;
@@ -93,7 +92,6 @@ button:hover{
     color:#333;
     margin-bottom:20px;
 }
-
 </style>
 </head>
 
@@ -104,13 +102,11 @@ button:hover{
 <h1>📄 AI Resume Analyzer</h1>
 
 <input type="file" id="file" />
-
 <br>
 
 <button onclick="analyzeResume()">Analyze Resume</button>
 
 <div id="loading"></div>
-
 <div id="result"></div>
 
 </div>
@@ -121,6 +117,11 @@ const allSkills = [
 "html","css","javascript","react","node","express",
 "mongodb","sql","python","java","docker",
 "aws","git","typescript","next","c","c++"
+];
+
+const academicKeywords = [
+"btech","b.e","mtech","m.sc","msc","bsc","bca","mca",
+"degree","diploma","engineering","university","college"
 ];
 
 async function analyzeResume(){
@@ -139,23 +140,14 @@ async function analyzeResume(){
     let text = "";
 
     if(file.type === "text/plain"){
-
         text = await file.text();
-
     }
-
     else if(file.type === "application/pdf"){
-
         text = await readPDF(file);
-
     }
-
     else if(file.type.startsWith("image/")){
-
         text = await readImage(file);
-
     }
-
     else{
         alert("Only TXT, PDF, Images allowed");
         return;
@@ -167,64 +159,74 @@ async function analyzeResume(){
 async function readPDF(file){
 
     const arrayBuffer = await file.arrayBuffer();
-
     const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
 
     let fullText = "";
 
     for(let i=1;i<=pdf.numPages;i++){
-
         const page = await pdf.getPage(i);
-
         const content = await page.getTextContent();
-
         const strings = content.items.map(item => item.str);
-
         fullText += strings.join(" ");
-
     }
 
     return fullText;
 }
 
 async function readImage(file){
-
-    const { data:{ text } } = await Tesseract.recognize(
-        file,
-        'eng'
-    );
-
+    const { data:{ text } } = await Tesseract.recognize(file,'eng');
     return text;
 }
 
 function processResume(text){
 
+    // 🎓 ACADEMIC ANALYSIS (FIXED)
+    let academicFound = [];
+
+    academicKeywords.forEach(word=>{
+        if(text.includes(word)){
+            academicFound.push(word);
+        }
+    });
+
+    let degreeMatch = text.match(/(bachelor|b\.tech|m\.tech|bsc|msc|bca|mca|diploma)[^.,\n]*/gi);
+    if(degreeMatch) academicFound.push(...degreeMatch);
+
+    let collegeMatch = text.match(/(college|university|institute)[^.,\n]*/gi);
+    if(collegeMatch) academicFound.push(...collegeMatch);
+
+    academicFound = [...new Set(academicFound)];
+
+    let cgpaMatch = text.match(/(\d{1,2}\.\d{1,2})\s*(cgpa|gpa)/i);
+    let cgpa = cgpaMatch ? cgpaMatch[1] + " CGPA" : "Not Mentioned";
+
+    let percentMatch = text.match(/(\d{2,3})\s*%/);
+    let percentage = percentMatch ? percentMatch[1] + "%" : "";
+
+    let yearMatch = text.match(/(20\d{2})\s*[-–]\s*(20\d{2})/);
+    let year = yearMatch 
+        ? yearMatch[0] 
+        : (text.match(/(20\d{2})/) ? text.match(/(20\d{2})/)[0] : "Not Found");
+
+    // Skills
     let foundSkills = [];
 
     allSkills.forEach(skill=>{
-
         if(text.includes(skill)){
             foundSkills.push(skill);
         }
-
     });
 
-    let missingSkills = allSkills.filter(
-        skill => !foundSkills.includes(skill)
-    );
+    let missingSkills = allSkills.filter(skill => !foundSkills.includes(skill));
 
-    let atsScore = Math.min(
-        100,
-        foundSkills.length * 10
-    );
+    let atsScore = Math.min(100, foundSkills.length * 10);
 
     let experience = "Beginner";
 
-    if(text.includes("3 years") || text.includes("4 years") || text.includes("5 years")){
+    if(/\b(3|4|5)\s*years?\b/i.test(text)){
         experience = "Intermediate";
     }
-
-    if(text.includes("7 years") || text.includes("8 years") || text.includes("10 years")){
+    if(/\b(7|8|9|10)\s*years?\b/i.test(text)){
         experience = "Expert";
     }
 
@@ -233,11 +235,9 @@ function processResume(text){
     if(text.includes("python") || text.includes("java")){
         bestRole = "Backend Developer";
     }
-
     if(text.includes("react")){
         bestRole = "Frontend Developer";
     }
-
     if(text.includes("aws") || text.includes("docker")){
         bestRole = "DevOps Engineer";
     }
@@ -245,7 +245,6 @@ function processResume(text){
     document.getElementById("loading").innerHTML = "";
 
     document.getElementById("result").innerHTML = `
-
     <div class="result">
 
         <div class="score">
@@ -253,37 +252,36 @@ function processResume(text){
         </div>
 
         <h3>Skills:</h3>
-
         ${
-            foundSkills.length > 0
-            ?
-            foundSkills.map(skill =>
-                `<span class="skill">${skill}</span>`
-            ).join("")
-            :
-            "No skills detected"
+            foundSkills.length
+            ? foundSkills.map(skill=>`<span class="skill">${skill}</span>`).join("")
+            : "No skills detected"
         }
 
         <br><br>
 
         <h3>Missing Skills:</h3>
-
         ${
-            missingSkills.map(skill =>
-                `<span class="skill missing">${skill}</span>`
-            ).join("")
+            missingSkills.length
+            ? missingSkills.map(skill=>`<span class="skill missing">${skill}</span>`).join("")
+            : "None 🎉"
         }
 
         <br><br>
 
-        <h3>Experience: ${experience}</h3>
+        <h3>🎓 Academic Details:</h3>
+        <p>${academicFound.length ? academicFound.join("<br>") : "Not Clearly Found"}</p>
+
+        <p><b>CGPA:</b> ${cgpa}</p>
+        ${percentage ? `<p><b>Percentage:</b> ${percentage}</p>` : ""}
+        <p><b>Year:</b> ${year}</p>
 
         <br>
 
+        <h3>Experience: ${experience}</h3>
         <h3>Best Role: ${bestRole}</h3>
 
     </div>
-
     `;
 }
 
